@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -309,6 +310,8 @@
               <label>Up to date:</label>
               <input type="date" id="reportUntil" />
               <button id="exportBtn">Export Excel (All classes)</button>
+              <button id="exportDailyBtn">Export Daily Attendance</button>
+
             </div>
             <div class="muted">Export generates one Excel file with one sheet per class. Each sheet contains monthly stats for each student (name, roll, present/late/absent counts and %). Regular / Skill split included when available.</div>
           </div>
@@ -321,7 +324,7 @@
   <script>
   // ================= Firebase Init =================
   const firebaseConfig = {
-    apiKey: "AIzaSyB8T7Y692ytTeHlfdAPQ9fOvZ3e2qEPTKs",
+     apiKey: "AIzaSyB8T7Y692ytTeHlfdAPQ9fOvZ3e2qEPTKs",
     authDomain: "aasms-6a83a.firebaseapp.com",
     projectId: "aasms-6a83a",
     storageBucket: "aasms-6a83a.firebasestorage.app",
@@ -923,6 +926,48 @@
   })();
 
   // The rest of your usage and utilities remain intact.
+  // ========== Daily Attendance Export ==========
+document.getElementById("exportDailyBtn").addEventListener("click", async () => {
+  const classId = document.getElementById("analyticsClassSelect").value;
+  const date = document.getElementById("analyticsDate").value || new Date().toISOString().split("T")[0];
+  if (!classId) return alert("⚠️ Select a class");
+  if (!date) return alert("⚠️ Select a date");
+
+  const students = await getStudentsByClass(classId);
+  if (students.length === 0) return alert("⚠️ No students found in this class");
+
+  const sheetRows = [];
+  // Header
+  sheetRows.push([
+    "Roll", "Name", "P1 Status", "P1 Type", "P2 Status", "P2 Type", "P3 Status", "P3 Type",
+    "P4 Status", "P4 Type", "P5 Status", "P5 Type", "P6 Status", "P6 Type",
+    "P7 Status", "P7 Type", "P8 Status", "P8 Type"
+  ]);
+
+  for (const s of students) {
+    const dateObj = await getAttendanceForStudentOnDate(s.roll, date);
+    const row = [s.roll, s.name];
+    for (let p = 1; p <= 8; p++) {
+      const rec = dateObj ? (dateObj[`period${p}`] || { status: "Absent", type: "-" }) : { status: "Absent", type: "-" };
+      row.push(rec.status || "Absent", rec.type || "-");
+    }
+    sheetRows.push(row);
+  }
+
+  const wb = XLSX.utils.book_new();
+  const ws = XLSX.utils.aoa_to_sheet(sheetRows);
+  XLSX.utils.book_append_sheet(wb, ws, `Attendance_${date}`);
+
+  const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+  const blob = new Blob([wbout], { type: "application/octet-stream" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `Daily_Attendance_${classId}_${date}.xlsx`;
+  a.click();
+  URL.revokeObjectURL(url);
+});
+
   </script>
 </body>
 </html>
